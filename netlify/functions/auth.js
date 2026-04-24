@@ -1,116 +1,116 @@
-// Netlify serverless function — handles Google OAuth token exchange & refresh
-// Environment variables needed (set in Netlify dashboard):
-//   GOOGLE_CLIENT_ID     — your OAuth client ID
-//   GOOGLE_CLIENT_SECRET — your OAuth client secret
+# Sunny Archer Services — Netlify Backend
 
-exports.handler = async (event) => {
-  const headers = {
-    'Access-Control-Allow-Origin': 'https://sunny-archer-es.github.io',
-    'Access-Control-Allow-Headers': 'Content-Type',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Content-Type': 'application/json',
-  };
+This folder contains the serverless backend that handles Google OAuth token exchange and refresh, so users stay signed in permanently without re-authenticating.
 
-  // Handle preflight
-  if (event.httpMethod === 'OPTIONS') {
-    return { statusCode: 204, headers, body: '' };
-  }
+---
 
-  if (event.httpMethod !== 'POST') {
-    return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method not allowed' }) };
-  }
+## Setup (~5 minutes)
 
-  let body;
-  try {
-    body = JSON.parse(event.body);
-  } catch {
-    return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid JSON' }) };
-  }
+### Step 1 — Create a Netlify account
+Go to [netlify.com](https://netlify.com) → Sign up (use GitHub to connect easily).
 
-  const { action, code, redirect_uri, refresh_token } = body;
-  const CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
-  const CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
+---
 
-  if (!CLIENT_ID || !CLIENT_SECRET) {
-    return { statusCode: 500, headers, body: JSON.stringify({ error: 'Server not configured' }) };
-  }
+### Step 2 — Deploy this backend
 
-  try {
-    // ── ACTION: exchange code for tokens (first sign-in) ──────────────────
-    if (action === 'exchange') {
-      if (!code || !redirect_uri) {
-        return { statusCode: 400, headers, body: JSON.stringify({ error: 'Missing code or redirect_uri' }) };
-      }
+1. Create a new repository on GitHub (e.g. `sunny-archer-backend`)
+2. Upload these two files keeping the folder structure:
+   ```
+   netlify.toml
+   netlify/functions/auth.js
+   ```
+3. Go to [app.netlify.com](https://app.netlify.com) → **Add new site** → **Import from Git**
+4. Connect your GitHub and select the `sunny-archer-backend` repo
+5. Click **Deploy site**
+6. Your backend URL will be something like:
+   ```
+   https://amazing-archer-123.netlify.app
+   ```
 
-      const params = new URLSearchParams({
-        code,
-        client_id: CLIENT_ID,
-        client_secret: CLIENT_SECRET,
-        redirect_uri,
-        grant_type: 'authorization_code',
-      });
+---
 
-      const res = await fetch('https://oauth2.googleapis.com/token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: params.toString(),
-      });
+### Step 3 — Get your Google Client Secret
 
-      const data = await res.json();
+You already have your Client ID. Now you need the Client Secret:
 
-      if (!res.ok) {
-        return { statusCode: 400, headers, body: JSON.stringify({ error: data.error_description || 'Exchange failed' }) };
-      }
+1. Go to [console.cloud.google.com](https://console.cloud.google.com)
+2. **APIs & Services** → **Credentials**
+3. Click your OAuth 2.0 Client ID name
+4. Copy the **Client Secret** (shown on the right side)
 
-      return {
-        statusCode: 200,
-        headers,
-        body: JSON.stringify({
-          access_token: data.access_token,
-          refresh_token: data.refresh_token,
-          expires_in: data.expires_in,
-        }),
-      };
-    }
+---
 
-    // ── ACTION: refresh access token using stored refresh token ───────────
-    if (action === 'refresh') {
-      if (!refresh_token) {
-        return { statusCode: 400, headers, body: JSON.stringify({ error: 'Missing refresh_token' }) };
-      }
+### Step 4 — Add environment variables in Netlify
 
-      const params = new URLSearchParams({
-        refresh_token,
-        client_id: CLIENT_ID,
-        client_secret: CLIENT_SECRET,
-        grant_type: 'refresh_token',
-      });
+1. In Netlify dashboard → your site → **Site configuration** → **Environment variables**
+2. Click **Add a variable** and add these two:
 
-      const res = await fetch('https://oauth2.googleapis.com/token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: params.toString(),
-      });
+   | Key | Value |
+   |-----|-------|
+   | `GOOGLE_CLIENT_ID` | `200245296438-jdg3eeg4cmis29fk58r01i1stjfp0bfp.apps.googleusercontent.com` |
+   | `GOOGLE_CLIENT_SECRET` | *(paste your client secret here)* |
 
-      const data = await res.json();
+3. Click **Save**
+4. Go to **Deploys** → **Trigger deploy** → **Deploy site** to apply the new variables
 
-      if (!res.ok) {
-        return { statusCode: 400, headers, body: JSON.stringify({ error: data.error_description || 'Refresh failed' }) };
-      }
+---
 
-      return {
-        statusCode: 200,
-        headers,
-        body: JSON.stringify({
-          access_token: data.access_token,
-          expires_in: data.expires_in,
-        }),
-      };
-    }
+### Step 5 — Add your Netlify URL to Google Cloud
 
-    return { statusCode: 400, headers, body: JSON.stringify({ error: 'Unknown action' }) };
+1. Go to [console.cloud.google.com](https://console.cloud.google.com)
+2. **APIs & Services** → **Credentials** → click your OAuth Client ID
+3. Under **Authorised redirect URIs** → **+ Add URI** → add:
+   ```
+   https://sunny-archer-es.github.io/Pro-Clean-Photos-/
+   ```
+   (This should already be there — just confirm it exists)
 
-  } catch (err) {
-    return { statusCode: 500, headers, body: JSON.stringify({ error: err.message }) };
-  }
-};
+---
+
+### Step 6 — Update the frontend
+
+In `sunny-archer-services.html`, find this line:
+```javascript
+const BACKEND_URL = 'https://reliable-sorbet-2c7d57.netlify.app.netlify.app/.netlify/functions/auth';
+```
+
+Replace `YOUR-NETLIFY-SITE` with your actual Netlify site name, e.g.:
+```javascript
+const BACKEND_URL = 'https://amazing-archer-123.netlify.app/.netlify/functions/auth';
+```
+
+Then upload the updated HTML to your GitHub Pages repo.
+
+---
+
+## How it works
+
+```
+iPhone app                  Netlify Function              Google OAuth
+    │                             │                             │
+    │── Sign in tap ─────────────►│                             │
+    │                             │── /o/oauth2/v2/auth ───────►│
+    │◄── redirect with ?code= ────│◄── authorization code ──────│
+    │── POST /auth (exchange) ───►│                             │
+    │                             │── POST /token ─────────────►│
+    │◄── access_token + ──────────│◄── tokens ──────────────────│
+    │    refresh_token            │                             │
+    │                             │                             │
+    │  (55 min later)             │                             │
+    │── POST /auth (refresh) ────►│                             │
+    │                             │── POST /token (refresh) ───►│
+    │◄── new access_token ────────│◄── new access_token ────────│
+```
+
+The refresh token is stored in the user's browser localStorage. The client secret never leaves the Netlify backend.
+
+---
+
+## Troubleshooting
+
+| Problem | Solution |
+|---------|----------|
+| `Server not configured` error | Check environment variables are set in Netlify |
+| `Exchange failed` error | Make sure redirect URI matches exactly in Google Cloud |
+| CORS error | Check `netlify.toml` has the correct GitHub Pages origin |
+| Still asking to sign in | Clear localStorage in Safari → Settings → Safari → Advanced → Website Data |
